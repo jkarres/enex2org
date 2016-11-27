@@ -9,20 +9,74 @@ import sys
 import uuid
 
 class Resource:
-    def __init__(self, relt):
-        self.base64data = relt.find('data').text or ''
-        self.data = base64.b64decode(self.base64data)
-        self.mime = relt.find('mime').text
+    def __init__(self, base64data, data, mime, filename):
+        if base64data is not None:
+            self.base64data = base64data
+            self.data = base64.b64decode(self.base64data)
+        else:
+            self.base64data = None
+            self.data = data
+        self.mime = mime
         md5 = hashlib.md5()
         md5.update(self.data)
         self.hash_ = md5.hexdigest()
+        if filename:
+            self.filename = filename
+        else:
+            self.filename = self.hash_ + '.' + self.mime.split('/')[1]
+
+    @staticmethod
+    def from_elt(relt):
+        base64data = relt.find('data').text or ''
+        mime = relt.find('mime').text
         filename_elt = relt.find('resource-attributes/file-name')
         if filename_elt is not None and filename_elt.text:
-            self.filename = filename_elt.text
+            filename = filename_elt.text
         else:
-            self.filename = self.hash_ + self.mime.split('/')[1]
+            filename = None
+        return Resource(base64data, None, mime, filename)
 
-Note = namedtuple('Note', 'title content tags resources sourceurl uuid attachment_dir')
+class Note:
+    def __init__(self, note_elt):
+        self.title = note_elt.find('title').text
+        self.content = ET.fromstring(clean(note_elt.find('content').text))
+        self.tags = [elt.text for elt in note_elt.findall('tag')]
+        self.resources = read_resources(note_elt)
+        self.sourceurl = get_sourceurl(note_elt)
+        self.uuid = str(uuid.uuid4())
+        self.attachment_dir = os.path.join('data', self.uuid[:2], self.uuid[2:])
+
+    def attachmentify(self):
+        used_resource_hashes, html = enml.enml2xhtml(self.content, self.resources)
+        for hsh in used_resource_hashes:
+            del self.resources[hsh]
+        note_as_attachment = Resource(None, html, None, 'original.html')
+        self.resources[note_as_attachment.hash_] = note_as_attachment
+
+        self.content = ET.Element('en-note')
+        self.content.text = 'See '
+        ET.SubElement(self.content, 'en-media', {'hash': note_as_attachment.hash_}).tail = ' in attachments. '
+        ET.SubElement(self.content, 'a', {'href': self.sourceurl}).text = 'Source URL'
+
+    def write(self, f, outpath):
+        if self.resources:
+            self.tags.append('ATTACH')
+
+        f.write(format_title_and_tags(self.title, self.tags))
+
+        if self.resources:
+            abs_attachment_dir = os.path.join(outpath, self.attachment_dir)
+            os.makedirs(abs_attachment_dir)
+            filenames = []
+            for res_hash, res in self.resources.items():
+                filenames.append(res.filename)
+                with open(os.path.join(abs_attachment_dir, res.filename), 'wb') as resf:
+                    resf.write(res.data)
+            f.write(':PROPERTIES:\n')
+            f.write(':Attachments: ' + ' '.join(filenames) + '\n')
+            f.write(':ID:       ' + self.uuid + '\n:END:\n')
+        f.write(enml.enml2str(self))
+        f.write('\n')
 
 def iter_notes(enexpath):
     for _, elt in ET.iterparse(enexpath):
@@ -50,55 +104,8 @@ def format_title_and_tags(title, tags):
     else:
         return '* ' + title + '\n'
 
-def convert_note_with_sourceurl(note, f, outputdir):
-    os.makedirs(os.path.join(outputdir, note.attachment_dir))
-    used_resource_hashes, html = enml.enml2xhtml(note.content, note.resources)
-    with open(os.path.join(outputdir, note.attachment_dir, 'original.html'), 'wb') as html_f:
-        html_f.write(html)
-    attached_filenames = ['original.html']
-    note.tags.append('ATTACH')
-
-    for res_hash, res in note.resources.items():
-        if res_hash in used_resource_hashes:
-            continue
-        attached_filenames.append(res.filename)
-        with open(os.path.join(outputdir, note.attachment_dir, res.filename), 'wb') as resf:
-            resf.write(res.data)
-
-    f.write(format_title_and_tags(note.title, note.tags))
-    f.write(':PROPERTIES:\n')
-    f.write(':Attachments: ' + ' '.join(attached_filenames) + '\n')
-    f.write(':ID:       ' + note.uuid + '\n:END:\n')
-    f.write('See [[file:{}][{}]] in attachments. [[{}][Source URL]]\n'.format(
-        os.path.join(note.attachment_dir, 'original.html'),
-        'original.html',
-        note.sourceurl))
-
-def convert_regular_note(note, f, outputdir):
-    if note.resources:
-        note.tags.append('ATTACH')
-
-    f.write(format_title_and_tags(note.title, note.tags))
-
-    if note.resources:
-        os.makedirs(os.path.join(outputdir, note.attachment_dir))
-        filenames = []
-        for res_hash, res in note.resources.items():
-            if res.filename:
-                res_filename = res.filename
-            else:
-                res_filename = res_hash + '.' + res.mime.split('/')[1]
-            filenames.append(res_filename)
-            with open(os.path.join(outputdir, note.attachment_dir, res_filename), 'wb') as resf:
-                resf.write(res.data)
-        f.write(':PROPERTIES:\n')
-        f.write(':Attachments: ' + ' '.join(filenames) + '\n')
-        f.write(':ID:       ' + note.uuid + '\n:END:\n')
-    f.write(enml.enml2str(note))
-    f.write('\n')
-
 def read_resources(note_elt):
-    resources = [Resource(resource_elt) for resource_elt in note_elt.findall('resource')]
+    resources = [Resource.from_elt(resource_elt) for resource_elt in note_elt.findall('resource')]
     ensure_unique_filenames(resources)
     return {r.hash_: r for r in resources}
 
@@ -122,21 +129,10 @@ def run(enexpath, outpath):
     outfile = os.path.join(outpath, filename) + '.org'
     with open(outfile, 'w') as f:
         for note_elt in iter_notes(enexpath):
-            note_uuid = str(uuid.uuid4())
-            note = Note(
-                title=note_elt.find('title').text,
-                content=ET.fromstring(clean(note_elt.find('content').text)),
-                tags=[elt.text for elt in note_elt.findall('tag')],
-                resources=read_resources(note_elt),
-                sourceurl=get_sourceurl(note_elt),
-                uuid=note_uuid,
-                attachment_dir=os.path.join('data', note_uuid[:2], note_uuid[2:]),
-            )
-
+            note = Note(note_elt)
             if note.sourceurl:
-                convert_note_with_sourceurl(note, f, outpath)
-            else:
-                convert_regular_note(note, f, outpath)
+                note.attachmentify()
+            note.write(f, outpath)
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description='Convert .enex to .org')
