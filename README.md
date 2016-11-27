@@ -28,7 +28,6 @@ pressing tab should be enough to have orgmode finish the formatting.
 - encryption
 - links to other Evernote notes
 - word wrap
-- gracefully handle notes with multiple attachments with the same file name
 
 ## How do you run it?
     python enex2org.py mynotes.enex outputdir

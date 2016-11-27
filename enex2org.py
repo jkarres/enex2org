@@ -1,14 +1,26 @@
 import xml.etree.ElementTree as ET
 import base64
 import hashlib
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import argparse
 import enml
 import os
 import sys
 import uuid
 
-Resource = namedtuple('Resource', 'data mime filename base64data')
+class Resource:
+    def __init__(self, relt):
+        self.base64data = relt.find('data').text or ''
+        self.data = base64.b64decode(self.base64data)
+        self.mime = relt.find('mime').text
+        md5 = hashlib.md5()
+        md5.update(self.data)
+        self.hash_ = md5.hexdigest()
+        filename_elt = relt.find('resource-attributes/file-name')
+        if filename_elt is not None and filename_elt.text:
+            self.filename = filename_elt.text
+        else:
+            self.filename = self.hash_
 
 Note = namedtuple('Note', 'title content tags resources sourceurl uuid attachment_dir')
 
@@ -17,17 +29,6 @@ def iter_notes(enexpath):
         if elt.tag == 'note':
             yield elt
             # elt.clear()
-
-def do_resource(relt):
-    base64data = relt.find('data').text or ''
-    data = base64.b64decode(base64data)
-    mime = relt.find('mime').text
-    md5 = hashlib.md5()
-    md5.update(data)
-    the_hash = md5.hexdigest()
-    maybe_filename_elt = relt.find('resource-attributes/file-name')
-    filename = maybe_filename_elt.text if maybe_filename_elt is not None else ''
-    return the_hash, Resource(data, mime, filename, base64data)
 
 def clean(s):
     s = s.replace('&nbsp;', ' ')
@@ -100,6 +101,23 @@ def convert_regular_note(note, f, outputdir):
     f.write(enml.enml2str(note))
     f.write('\n')
 
+def read_resources(note_elt):
+    resources = [Resource(resource_elt) for resource_elt in note_elt.findall('resource')]
+    ensure_unique_filenames(resources)
+    return {r.hash_: r for r in resources}
+
+def ensure_unique_filenames(resources):
+    used_filenames = set()
+    for res in resources:
+        if res.filename in used_filenames:
+            suffix = 1
+            proposed_filename = res.filename + '_' + str(suffix)
+            while proposed_filename in used_filenames:
+                suffix += 1
+                proposed_filename = res.filename + '_' + str(suffix)
+            res.filename = proposed_filename
+        used_filenames.add(res.filename)
+
 def run(enexpath, outpath):
     filename = os.path.basename(enexpath)
     if filename.endswith('.enex'):
@@ -113,7 +131,7 @@ def run(enexpath, outpath):
                 title=note_elt.find('title').text,
                 content=ET.fromstring(clean(note_elt.find('content').text)),
                 tags=[elt.text for elt in note_elt.findall('tag')],
-                resources=dict(do_resource(relt) for relt in note_elt.findall('resource')),
+                resources=read_resources(note_elt),
                 sourceurl=get_sourceurl(note_elt),
                 uuid=note_uuid,
                 attachment_dir=os.path.join('data', note_uuid[:2], note_uuid[2:]),
