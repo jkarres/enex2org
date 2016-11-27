@@ -15,10 +15,12 @@ are converted into orgmode formatting.
 
 Tables are halfway implemented:  assuming your table is not too complicated,
 the output will contain something looking like
+
     |-
     | 1 | 2
     | 3 | 4
     |-
+    
 Opening the file in Emacs, positioning your cursor in the table, and
 pressing tab should be enough to have orgmode finish the formatting.
 
