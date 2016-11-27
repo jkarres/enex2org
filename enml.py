@@ -2,6 +2,7 @@ import copy
 import sys
 import xml.etree.ElementTree as ET
 import os.path
+from contextlib import contextmanager
 
 def enml2xhtml(root, resd):
     used_resource_hashes = set()
@@ -27,7 +28,6 @@ def enml2xhtml(root, resd):
             elt.tag = 'div'
     return used_resource_hashes, ET.tostring(root)
 
-from contextlib import contextmanager
 
 INDENT = object()
 DEDENT = object()
@@ -126,7 +126,6 @@ def br(rv, elt, note):
 
 @contextmanager
 def media(rv, elt, note):
-    # first location then descr
     filename = note.resources[elt.attrib['hash']].filename
     rv.append('[[file:{}][{}]]'.format(
         os.path.join(note.attachment_dir, filename),
@@ -160,9 +159,6 @@ tag2contextmgr = {
 def enml2str(note):
     root = note.content
     resd = note.resources
-
-
-    # returns list of str/INDENT/DEDENT
     def process_elt(elt, rv):
         with tag2contextmgr.get(elt.tag, default)(rv, elt, note):
             if elt.text:
