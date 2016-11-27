@@ -156,7 +156,7 @@ tag2contextmgr = {
     'en-media': media,
 }
 
-def enml2str(note):
+def note2org(note):
     root = note.content
     resd = note.resources
     def process_elt(elt, rv):

@@ -58,25 +58,26 @@ class Note:
         ET.SubElement(self.content, 'en-media', {'hash': note_as_attachment.hash_}).tail = ' in attachments. '
         ET.SubElement(self.content, 'a', {'href': self.sourceurl}).text = 'Source URL'
 
-    def write(self, f, outpath):
+    def write(self, outfile, outpath):
         if self.resources:
             self.tags.append('ATTACH')
 
-        f.write(format_title_and_tags(self.title, self.tags))
+        outfile.write(format_title_and_tags(self.title, self.tags))
 
         if self.resources:
-            abs_attachment_dir = os.path.join(outpath, self.attachment_dir)
-            os.makedirs(abs_attachment_dir)
+            attachment_dir = os.path.join(outpath, self.attachment_dir)
+            os.makedirs(attachment_dir)
             filenames = []
             for res_hash, res in self.resources.items():
                 filenames.append(res.filename)
-                with open(os.path.join(abs_attachment_dir, res.filename), 'wb') as resf:
+                with open(os.path.join(attachment_dir, res.filename), 'wb') as resf:
                     resf.write(res.data)
-            f.write(':PROPERTIES:\n')
-            f.write(':Attachments: ' + ' '.join(filenames) + '\n')
-            f.write(':ID:       ' + self.uuid + '\n:END:\n')
-        f.write(enml.enml2str(self))
-        f.write('\n')
+            outfile.write(':PROPERTIES:\n')
+            outfile.write(':Attachments: ' + ' '.join(filenames) + '\n')
+            outfile.write(':ID:       ' + self.uuid + '\n:END:\n')
+
+        outfile.write(enml.note2org(self))
+        outfile.write('\n')
 
 def iter_notes(enexpath):
     for _, elt in ET.iterparse(enexpath):
@@ -122,17 +123,13 @@ def ensure_unique_filenames(resources):
         used_filenames.add(res.filename)
 
 def run(enexpath, outpath):
-    filename = os.path.basename(enexpath)
-    if filename.endswith('.enex'):
-        filename = filename[:-5]
-
-    outfile = os.path.join(outpath, filename) + '.org'
-    with open(outfile, 'w') as f:
+    outfilename = os.path.join(outpath, 'out.org')
+    with open(outfilename, 'w') as outfile:
         for note_elt in iter_notes(enexpath):
             note = Note(note_elt)
             if note.sourceurl:
                 note.attachmentify()
-            note.write(f, outpath)
+            note.write(outfile, outpath)
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description='Convert .enex to .org')
