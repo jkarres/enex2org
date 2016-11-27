@@ -20,7 +20,7 @@ class Resource:
         if filename_elt is not None and filename_elt.text:
             self.filename = filename_elt.text
         else:
-            self.filename = self.hash_
+            self.filename = self.hash_ + self.mime.split('/')[1]
 
 Note = namedtuple('Note', 'title content tags resources sourceurl uuid attachment_dir')
 
@@ -42,6 +42,14 @@ def get_sourceurl(note_elt):
     else:
         return None
 
+def format_title_and_tags(title, tags):
+    if tags:
+        tag_str = ':' + ':'.join(tags) + ':'
+        num_spaces = max(1, 75 - len(title) - len(tag_str))
+        return '* ' + title + ' '*num_spaces + tag_str + '\n'
+    else:
+        return '* ' + title + '\n'
+
 def convert_note_with_sourceurl(note, f, outputdir):
     os.makedirs(os.path.join(outputdir, note.attachment_dir))
     used_resource_hashes, html = enml.enml2xhtml(note.content, note.resources)
@@ -53,18 +61,11 @@ def convert_note_with_sourceurl(note, f, outputdir):
     for res_hash, res in note.resources.items():
         if res_hash in used_resource_hashes:
             continue
-        if res.filename:
-            res_filename = res.filename
-        else:
-            res_filename = res_hash + '.' + res.mime.split('/')[1]
-        attached_filenames.append(res_filename)
-        with open(os.path.join(outputdir, note.attachment_dir, res_filename), 'wb') as resf:
+        attached_filenames.append(res.filename)
+        with open(os.path.join(outputdir, note.attachment_dir, res.filename), 'wb') as resf:
             resf.write(res.data)
 
-    tag_str = ':' + ':'.join(note.tags) + ':'
-    num_spaces = max(1, 75 - len(note.title) - len(tag_str))
-    f.write('* ' + note.title + ' '*num_spaces + tag_str + '\n')
-
+    f.write(format_title_and_tags(note.title, note.tags))
     f.write(':PROPERTIES:\n')
     f.write(':Attachments: ' + ' '.join(attached_filenames) + '\n')
     f.write(':ID:       ' + note.uuid + '\n:END:\n')
@@ -77,12 +78,7 @@ def convert_regular_note(note, f, outputdir):
     if note.resources:
         note.tags.append('ATTACH')
 
-    if note.tags:
-        tag_str = ':' + ':'.join(note.tags) + ':'
-        num_spaces = max(1, 75 - len(note.title) - len(tag_str))
-        f.write('* ' + note.title + ' '*num_spaces + tag_str + '\n')
-    else:
-        f.write('* ' + note.title + '\n')
+    f.write(format_title_and_tags(note.title, note.tags))
 
     if note.resources:
         os.makedirs(os.path.join(outputdir, note.attachment_dir))
