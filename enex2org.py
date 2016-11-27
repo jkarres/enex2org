@@ -28,7 +28,7 @@ def iter_notes(enexpath):
     for _, elt in ET.iterparse(enexpath):
         if elt.tag == 'note':
             yield elt
-            # elt.clear()
+            elt.clear() # release memory
 
 def clean(s):
     s = s.replace('&nbsp;', ' ')
