@@ -5,6 +5,14 @@ import os.path
 from contextlib import contextmanager
 
 def enml2xhtml(root, resd):
+    """Convert the given ET.Element into html.  Return that html along with
+    a set containing the hashes of the resources that were incorporated
+    into that html (so we don't bother writing them out as attachments
+    unnecessarily).
+
+    root -- the ET.Element
+    resd -- the hash->resource dict
+    """
     used_resource_hashes = set()
     for elt in root.iter():
         if elt.tag == 'en-note':
@@ -157,6 +165,7 @@ tag2contextmgr = {
 }
 
 def note2org(note):
+    """Convert the content of a Note object into a string."""
     root = note.content
     resd = note.resources
     def process_elt(elt, rv):
@@ -165,17 +174,21 @@ def note2org(note):
                 rv.append(elt.text.replace('\n', ''))
             for c in elt:
                 if elt.tag == 'div' and c.tag == 'br':
+                    # you'll get stuff like <div><br/></div> where you'll only
+                    # want a single newline
                     pass
                 else:
                     process_elt(c, rv)
                 if c.tail:
                     rv.append(c.tail.replace('\n', ''))
 
-    indent_level = 0
-    in_row = False
-    new_strs = []
-    lists = []
-    rv = []
+    indent_level = 0 # for keeping track of nested lists
+    in_row = False # are we currently in a table row?
+    new_strs = [] # we're going to cat these together as our final answer
+    lists = [] # used as a stack to track nested sublists
+               # an int represents the position in an ordered list
+               # a None represents an unordered list
+    rv = [] # gets passed through the process_elt function
     process_elt(root, rv)
     for item in rv:
         if item is None:
@@ -197,11 +210,13 @@ def note2org(note):
         if item is END_UNORDERED:
             lists.pop()
         if item is LIST_ITEM:
-            if lists[-1]:
+            if lists[-1]: # are we in an ordered list?
                 item = '\n' + str(lists[-1]) + '. '
                 lists[-1] += 1
             else:
                 item = '\n- '
+
+        # take care of indentation
         if isinstance(item, str):
             if in_row:
                 to_add = item.replace('\n', '')

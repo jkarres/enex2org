@@ -9,7 +9,13 @@ import sys
 import uuid
 
 class Resource:
+    """Represents an attachment."""
     def __init__(self, base64data, data, mime, filename):
+        """
+        data -- can be None if base64data is passed in
+        filename -- can be None, in which case a name will be constructed from
+          the hash and the mime info
+        """
         if base64data is not None:
             self.base64data = base64data
             self.data = base64.b64decode(self.base64data)
@@ -27,6 +33,8 @@ class Resource:
 
     @staticmethod
     def from_elt(relt):
+        """Construct a Resource instance based on a ElementTree.Element that was
+        created from a resource element in the ENML."""
         base64data = relt.find('data').text or ''
         mime = relt.find('mime').text
         filename_elt = relt.find('resource-attributes/file-name')
@@ -47,6 +55,8 @@ class Note:
         self.attachment_dir = os.path.join('data', self.uuid[:2], self.uuid[2:])
 
     def attachmentify(self):
+        """Move the note contents into an attachment, replacing it with a link
+        to that newly created attachment."""
         used_resource_hashes, html = enml.enml2xhtml(self.content, self.resources)
         for hsh in used_resource_hashes:
             del self.resources[hsh]
@@ -59,6 +69,8 @@ class Note:
         ET.SubElement(self.content, 'a', {'href': self.sourceurl}).text = 'Source URL'
 
     def write(self, outfile, outpath):
+        """Write out this note in org format to outfile and write out its
+        attachments to the appropriate location in outpath."""
         if self.resources:
             self.tags.append('ATTACH')
 
@@ -80,6 +92,7 @@ class Note:
         outfile.write('\n')
 
 def iter_notes(enexpath):
+    """Iterate through the note elements of the XML file at enexpath."""
     for _, elt in ET.iterparse(enexpath):
         if elt.tag == 'note':
             yield elt
@@ -106,6 +119,8 @@ def format_title_and_tags(title, tags):
         return '* ' + title + '\n'
 
 def read_resources(note_elt):
+    """Create the resource objects for the note whose ET.Element is passed
+    in."""
     resources = [Resource.from_elt(resource_elt) for resource_elt in note_elt.findall('resource')]
     ensure_unique_filenames(resources)
     return {r.hash_: r for r in resources}
