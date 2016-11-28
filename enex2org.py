@@ -130,10 +130,15 @@ def ensure_unique_filenames(resources):
     for res in resources:
         if res.filename in used_filenames:
             suffix = 1
-            proposed_filename = res.filename + '_' + str(suffix)
+            dotidx = res.filename.rfind('.')
+            if dotidx <= 0:
+                left, right = res.filename, ''
+            else:
+                left, right = res.filename[:dotidx], res.filename[dotidx:]
+            proposed_filename = left + '_' + str(suffix) + right
             while proposed_filename in used_filenames:
                 suffix += 1
-                proposed_filename = res.filename + '_' + str(suffix)
+                proposed_filename = left + '_' + str(suffix) + right
             res.filename = proposed_filename
         used_filenames.add(res.filename)
 
