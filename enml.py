@@ -3,6 +3,7 @@ import sys
 import xml.etree.ElementTree as ET
 import os.path
 from contextlib import contextmanager
+import re
 
 def enml2xhtml(root, resd):
     """Convert the given ET.Element into html.  Return that html along with
@@ -79,11 +80,14 @@ def bold(rv, elt, note):
 
 @contextmanager
 def link(rv, elt, note):
-    rv.append('[[')
-    rv.append(elt.attrib.get('href', '') or '')
-    rv.append('][')
+    # we want to keep this as a single chunk for word-wrap purposes
+    # forgive me...
+    old_len = len(rv)
     yield
-    rv.append(']]')
+    assert(all(isinstance(x, str) for x in rv[old_len:]))
+    description = ''.join(rv[old_len:])
+    del rv[old_len:]
+    rv.append('[[{}][{}]]'.format(elt.attrib.get('href', '') or '', description))
 
 @contextmanager
 def table_row(rv, elt, note):
@@ -164,6 +168,8 @@ tag2contextmgr = {
     'en-media': media,
 }
 
+link_re = re.compile(r'\[\[(.*?)\]\[(.*)\]\]$')
+
 def note2org(note):
     """Convert the content of a Note object into a string."""
     root = note.content
@@ -189,6 +195,7 @@ def note2org(note):
                # an int represents the position in an ordered list
                # a None represents an unordered list
     rv = [] # gets passed through the process_elt function
+    column = 0
     process_elt(root, rv)
     for item in rv:
         if item is None:
@@ -216,11 +223,34 @@ def note2org(note):
             else:
                 item = '\n- '
 
-        # take care of indentation
         if isinstance(item, str):
             if in_row:
-                to_add = item.replace('\n', '')
+                new_strs.append(item.replace('\n', ''))
             else:
-                to_add = item.replace('\n', '\n' + '  '*indent_level)
-            new_strs.append(to_add)
+                #                         link                 or spaces or newline or other
+                for chunk in re.findall(r'\[\[[^\[\]]*?\]\[[^\[\]]*?\]\]| +|\n|[^ \n]+', item):
+
+                    # len as displayed in org mode
+                    mo = link_re.match(chunk)
+                    if mo is not None:
+                        chunk_len = len(mo.group(2))
+                    else:
+                        chunk_len = len(chunk)
+
+                    if chunk == '\n':
+                        new_strs.append('\n' + '  '*indent_level)
+                        column = 2 * indent_level
+                    elif column + chunk_len < 80:
+                        new_strs.append(chunk)
+                        column += chunk_len
+                    else:
+                        if chunk[0] == ' ':
+                            pass
+                        else:
+                            # delete trailing whitespace
+                            if new_strs and new_strs[-1][0] == ' ':
+                                del new_strs[-1]
+                            new_strs.append('\n' + '  '*indent_level + chunk)
+                            column = 2 * indent_level + chunk_len
+
     return ''.join(new_strs)

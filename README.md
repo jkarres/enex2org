@@ -20,14 +20,13 @@ the output will contain something looking like
     | 1 | 2
     | 3 | 4
     |-
-    
+
 Opening the file in Emacs, positioning your cursor in the table, and
 pressing tab should be enough to have orgmode finish the formatting.
 
 ## What does it not do (yet)?
 - encryption
 - links to other Evernote notes
-- word wrap
 
 ## How do you run it?
     python3 enex2org.py mynotes1.enex mynotes2.enex ... outputdir
