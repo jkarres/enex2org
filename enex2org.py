@@ -169,4 +169,4 @@ if __name__ == '__main__':
         print('{} already exists.'.format(args.output_dir))
         sys.exit(1)
     os.makedirs(args.output_dir)
-    run(args.input, args.output_dir, args.separate)
+    run(args.input, args.output_dir, args.separate or [])
