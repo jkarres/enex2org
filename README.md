@@ -30,4 +30,4 @@ pressing tab should be enough to have orgmode finish the formatting.
 - word wrap
 
 ## How do you run it?
-    python3 enex2org.py mynotes.enex outputdir
+    python3 enex2org.py mynotes1.enex mynotes2.enex ... outputdir

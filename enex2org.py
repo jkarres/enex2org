@@ -137,19 +137,20 @@ def ensure_unique_filenames(resources):
             res.filename = proposed_filename
         used_filenames.add(res.filename)
 
-def run(enexpath, outpath):
+def run(enexpaths, outpath):
     outfilename = os.path.join(outpath, 'out.org')
     with open(outfilename, 'w') as outfile:
-        for note_elt in iter_notes(enexpath):
-            note = Note(note_elt)
-            if note.sourceurl:
-                note.attachmentify()
-            note.write(outfile, outpath)
+        for enexpath in enexpaths:
+            for note_elt in iter_notes(enexpath):
+                note = Note(note_elt)
+                if note.sourceurl:
+                    note.attachmentify()
+                note.write(outfile, outpath)
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description='Convert .enex to .org')
-    p.add_argument('input', help='enexpath to enex file')
-    p.add_argument('output_dir', help='enexpath of directory to create')
+    p.add_argument('input', nargs='+', help='path to enex file')
+    p.add_argument('output_dir', help='path of directory to create')
     args = p.parse_args()
     if os.path.exists(args.output_dir):
         print('{} already exists.'.format(args.output_dir))
