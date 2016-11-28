@@ -24,6 +24,8 @@ the output will contain something looking like
 Opening the file in Emacs, positioning your cursor in the table, and
 pressing tab should be enough to have orgmode finish the formatting.
 
+Use `--separate sometag` to output notes tagged `sometag` into their own file.
+
 ## What does it not do (yet)?
 - encryption
 - links to other Evernote notes

@@ -142,23 +142,31 @@ def ensure_unique_filenames(resources):
             res.filename = proposed_filename
         used_filenames.add(res.filename)
 
-def run(enexpaths, outpath):
-    outfilename = os.path.join(outpath, 'out.org')
-    with open(outfilename, 'w') as outfile:
-        for enexpath in enexpaths:
-            for note_elt in iter_notes(enexpath):
-                note = Note(note_elt)
+def pick_file(note_tags, separate_tags):
+    for st in separate_tags:
+        if st in note_tags:
+            return st
+    return 'out'
+
+def run(enexpaths, outpath, tags):
+    for enexpath in enexpaths:
+        for note_elt in iter_notes(enexpath):
+            note = Note(note_elt)
+            with open(os.path.join(outpath, pick_file(note.tags, tags)+'.org'), 'a') as outfile:
                 if note.sourceurl:
                     note.attachmentify()
                 note.write(outfile, outpath)
+
 
 if __name__ == '__main__':
     p = argparse.ArgumentParser(description='Convert .enex to .org')
     p.add_argument('input', nargs='+', help='path to enex file')
     p.add_argument('output_dir', help='path of directory to create')
+    p.add_argument('-s', '--separate', metavar='TAG', action='append',
+                   help='create a separate file for notes of this tag')
     args = p.parse_args()
     if os.path.exists(args.output_dir):
         print('{} already exists.'.format(args.output_dir))
         sys.exit(1)
     os.makedirs(args.output_dir)
-    run(args.input, args.output_dir)
+    run(args.input, args.output_dir, args.separate)
