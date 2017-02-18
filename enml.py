@@ -109,7 +109,7 @@ def table(rv, elt, note):
 
 @contextmanager
 def add_newline(rv, elt, note):
-    if rv and rv[-1] and rv[-1][-1] != '\n':
+    if rv and type(rv[-1]) is str and rv[-1] and rv[-1][-1] != '\n':
         rv.append('\n')
     yield
     rv.append('\n')
