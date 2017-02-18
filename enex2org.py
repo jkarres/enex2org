@@ -7,6 +7,7 @@ import enml
 import os
 import sys
 import uuid
+import datetime
 
 class Resource:
     """Represents an attachment."""
@@ -49,6 +50,7 @@ class Note:
         self.title = note_elt.find('title').text
         self.content = ET.fromstring(clean(note_elt.find('content').text))
         self.tags = [elt.text for elt in note_elt.findall('tag')]
+        self.created = note_elt.find('created').text
         self.resources = read_resources(note_elt)
         self.sourceurl = get_sourceurl(note_elt)
         self.uuid = str(uuid.uuid4())
@@ -88,6 +90,7 @@ class Note:
             outfile.write(':Attachments: ' + ' '.join(filenames) + '\n')
             outfile.write(':ID:       ' + self.uuid + '\n:END:\n')
 
+        outfile.write(format_date(self.created))
         outfile.write(enml.note2org(self))
         outfile.write('\n')
 
@@ -117,6 +120,10 @@ def format_title_and_tags(title, tags):
         return '* ' + title + ' '*num_spaces + tag_str + '\n'
     else:
         return '* ' + title + '\n'
+
+def format_date(date):
+    dt = datetime.datetime.strptime(date[0:13], '%Y%m%dT%H%M')
+    return '<' + dt.strftime('%Y-%m-%d %a %H:%M')  + '>' + '\n'
 
 def read_resources(note_elt):
     """Create the resource objects for the note whose ET.Element is passed
